@@ -104,12 +104,12 @@
       <div class="field">
         <div class="row-inline">
           <div style="flex:1;">
-            <label>Tijd evenement</label>
-            <input type="time" id="f-tijd-evenement" />
+            <label>Huurtijd (vanaf)</label>
+            <input type="time" id="f-huur-start" />
           </div>
           <div style="flex:1;">
-            <label>Aanwezig vanaf (opbouw)</label>
-            <input type="time" id="f-aanwezig-vanaf" />
+            <label>Huurduur (in uren)</label>
+            <input type="number" min="0.5" step="0.5" id="f-huur-duur" placeholder="bv. 4" />
           </div>
         </div>
       </div>
@@ -341,8 +341,8 @@ function resetForm() {
   $("f-klant").value = "";
   $("f-telefoon").value = "";
   $("f-datum").value = "";
-  $("f-tijd-evenement").value = "";
-  $("f-aanwezig-vanaf").value = "";
+  $("f-huur-start").value = "";
+  $("f-huur-duur").value = "";
   $("f-vestiging").value = "Haarlem";
   $("f-adres").value = "";
   $("f-afstand-handmatig").value = "";
@@ -365,8 +365,8 @@ function vulFormulierVoorBewerken(b) {
   $("f-klant").value = b.klant || "";
   $("f-telefoon").value = b.telefoon || "";
   $("f-datum").value = b.datum || "";
-  $("f-tijd-evenement").value = b.tijdEvenement || "";
-  $("f-aanwezig-vanaf").value = b.aanwezigVanaf || "";
+  $("f-huur-start").value = b.huurStart || "";
+  $("f-huur-duur").value = b.huurDuurUren || "";
   $("f-vestiging").value = b.vestiging || "Haarlem";
   $("f-adres").value = b.adres || "";
   $("f-afstand-handmatig").value = b.afstandKm != null ? b.afstandKm : "";
@@ -453,8 +453,8 @@ $("view-nieuw").addEventListener("submit", async (e) => {
     klant: $("f-klant").value.trim(),
     telefoon: $("f-telefoon").value.trim(),
     datum: $("f-datum").value,
-    tijdEvenement: $("f-tijd-evenement").value,
-    aanwezigVanaf: $("f-aanwezig-vanaf").value,
+    huurStart: $("f-huur-start").value,
+    huurDuurUren: $("f-huur-duur").value ? parseFloat($("f-huur-duur").value) : null,
     producten: geselecteerdeProducten,
     vestiging: $("f-vestiging").value,
     adres: $("f-adres").value.trim(),
@@ -509,9 +509,8 @@ function renderLijst() {
         <div>
           <div class="klant-naam">${escapeHtml(b.klant || "(geen naam)")}</div>
           <div class="meta">
-            ${datumStr}${b.tijdEvenement ? ` om ${b.tijdEvenement}` : ""} · ${(b.producten && b.producten.length ? b.producten.join(", ") : "Geen producten")}
+            ${datumStr}${b.huurStart ? ` vanaf ${b.huurStart}` : ""}${b.huurDuurUren ? ` · ${b.huurDuurUren} uur huur` : ""} · ${(b.producten && b.producten.length ? b.producten.join(", ") : "Geen producten")}
           </div>
-          ${b.aanwezigVanaf ? `<div class="meta" style="font-weight:600;color:#a35b1f;">Aanwezig vanaf ${b.aanwezigVanaf}</div>` : ""}
           <div class="meta">${escapeHtml(b.adres || "Geen adres")} · vanaf ${escapeHtml(b.vestiging || "")}${b.afstandKm != null ? ` · ${b.afstandKm} km` : ""}${b.reistijdMin != null ? ` · ±${b.reistijdMin} min` : ""}</div>
           <div class="meta" style="color:#999;margin-top:4px;">Toegewezen aan ${escapeHtml(Array.isArray(b.toegewezenAan) ? b.toegewezenAan.join(", ") : (b.toegewezenAan || ""))}</div>
           ${b.notities ? `<div class="meta" style="font-style:italic;margin-top:8px;">${escapeHtml(b.notities)}</div>` : ""}
@@ -584,16 +583,17 @@ function downloadICS(b) {
     producten ? `Producten: ${producten}` : "",
     `Vestiging: ${b.vestiging || ""}`,
     b.afstandKm != null ? `Afstand: ${b.afstandKm} km (±${b.reistijdMin} min)` : "",
-    b.tijdEvenement ? `Tijd evenement: ${b.tijdEvenement}` : "",
+    b.huurDuurUren ? `Huurduur: ${b.huurDuurUren} uur` : "",
     `Toegewezen aan: ${toegewezen}`,
     b.telefoon ? `Telefoon klant: ${b.telefoon}` : "",
     b.notities ? `Notities: ${b.notities}` : "",
   ].filter(Boolean).join("\\n");
 
-  const startTijd = b.aanwezigVanaf || b.tijdEvenement || "09:00";
+  const startTijd = b.huurStart || "09:00";
+  const duurUren = b.huurDuurUren || 4;
   const startISO = tijdstipNaarICS(b.datum, startTijd);
   const eindDatumObj = new Date(`${String(b.datum).slice(0, 10)}T${startTijd}:00`);
-  eindDatumObj.setHours(eindDatumObj.getHours() + 4);
+  eindDatumObj.setMinutes(eindDatumObj.getMinutes() + Math.round(duurUren * 60));
   const eindJaar = eindDatumObj.getFullYear();
   const eindMaand = String(eindDatumObj.getMonth() + 1).padStart(2, "0");
   const eindDag = String(eindDatumObj.getDate()).padStart(2, "0");
