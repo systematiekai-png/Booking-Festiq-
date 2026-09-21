@@ -56,8 +56,20 @@
   <div id="login-screen" style="max-width:420px;margin:3rem auto;text-align:center;">
     <img src="festiq-logo.jpeg" alt="FestiQ" style="max-width:220px;width:100%;height:auto;margin-bottom:4px;" />
     <p style="color:#666;font-size:14px;margin-top:4px;">Intern boekingssysteem</p>
-    <p style="font-size:14px;color:#444;margin:20px 0 12px;">Wie ben jij?</p>
-    <div id="login-buttons"></div>
+    <form id="login-form" style="text-align:left;margin-top:20px;">
+      <div class="field" style="max-width:100%;">
+        <label>Naam</label>
+        <select id="login-naam" required>
+          <option value="" disabled selected>Kies je naam</option>
+        </select>
+      </div>
+      <div class="field" style="max-width:100%;">
+        <label>Wachtwoord</label>
+        <input type="password" id="login-wachtwoord" required />
+      </div>
+      <div id="login-error" class="error-box hidden"></div>
+      <button type="submit" class="primary" style="width:100%;" id="login-btn">Inloggen</button>
+    </form>
   </div>
 
   <!-- MAIN APP -->
@@ -194,21 +206,51 @@ function toon(id) { $(id).classList.remove("hidden"); }
 function verberg(id) { $(id).classList.add("hidden"); }
 
 // ---- LOGIN ----
-function renderLogin() {
-  const container = $("login-buttons");
-  container.innerHTML = "";
+function vulNaamKeuze() {
+  const select = $("login-naam");
   TEAM.forEach((naam) => {
-    const btn = document.createElement("button");
-    btn.className = "login-btn";
-    btn.textContent = naam;
-    btn.onclick = () => {
-      huidigeGebruiker = naam;
-      localStorage.setItem("festiq_gebruiker", naam);
-      startApp();
-    };
-    container.appendChild(btn);
+    const opt = document.createElement("option");
+    opt.value = naam; opt.textContent = naam;
+    select.appendChild(opt);
   });
 }
+
+$("login-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  verberg("login-error");
+  const naam = $("login-naam").value;
+  const wachtwoord = $("login-wachtwoord").value;
+  if (!naam) {
+    $("login-error").textContent = "Kies eerst je naam.";
+    toon("login-error");
+    return;
+  }
+  $("login-btn").textContent = "Bezig...";
+  $("login-btn").disabled = true;
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "login", naam, wachtwoord }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      huidigeGebruiker = data.naam;
+      localStorage.setItem("festiq_gebruiker", data.naam);
+      $("login-wachtwoord").value = "";
+      startApp();
+    } else {
+      $("login-error").textContent = data.error || "Onjuiste naam of wachtwoord.";
+      toon("login-error");
+    }
+  } catch (err) {
+    $("login-error").textContent = "Kon niet inloggen. Controleer je internetverbinding en probeer opnieuw.";
+    toon("login-error");
+  } finally {
+    $("login-btn").textContent = "Inloggen";
+    $("login-btn").disabled = false;
+  }
+});
 
 function startApp() {
   verberg("login-screen");
@@ -631,7 +673,7 @@ function downloadICS(b) {
 
 // ---- INIT ----
 vulSelecties();
-renderLogin();
+vulNaamKeuze();
 if (huidigeGebruiker) {
   startApp();
 }
