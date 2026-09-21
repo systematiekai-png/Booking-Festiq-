@@ -191,7 +191,8 @@ const KLEUR_STATUS = {
 };
 
 let bookings = [];
-let huidigeGebruiker = localStorage.getItem("festiq_gebruiker") || null;
+let huidigeGebruiker = null;
+let huidigWachtwoord = null;
 let geselecteerdeProducten = [];
 let geselecteerdeToegewezen = [];
 let editId = null;
@@ -236,7 +237,7 @@ $("login-form").addEventListener("submit", async (e) => {
     const data = await res.json();
     if (data.ok) {
       huidigeGebruiker = data.naam;
-      localStorage.setItem("festiq_gebruiker", data.naam);
+      huidigWachtwoord = wachtwoord;
       $("login-wachtwoord").value = "";
       startApp();
     } else {
@@ -266,7 +267,7 @@ function startApp() {
 
 $("wissel-btn").onclick = () => {
   huidigeGebruiker = null;
-  localStorage.removeItem("festiq_gebruiker");
+  huidigWachtwoord = null;
   verberg("main-screen");
   toon("login-screen");
 };
@@ -275,13 +276,19 @@ $("wissel-btn").onclick = () => {
 async function laadBoekingen() {
   verberg("load-error");
   try {
-    const res = await fetch(APPS_SCRIPT_URL);
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "list", naam: huidigeGebruiker, wachtwoord: huidigWachtwoord }),
+    });
     if (!res.ok) throw new Error("fout bij laden");
-    bookings = await res.json();
+    const data = await res.json();
+    if (data && data.ok === false) throw new Error(data.error || "niet ingelogd");
+    bookings = data;
     bookings.sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
     renderLijst();
   } catch (e) {
-    $("load-error").textContent = "Kon boekingen niet laden. Controleer of de Apps Script URL goed is ingevuld.";
+    $("load-error").textContent = "Kon boekingen niet laden. Log opnieuw in of controleer je internetverbinding.";
     toon("load-error");
   }
 }
@@ -290,10 +297,12 @@ async function stuurNaarSheet(action, payload) {
   const res = await fetch(APPS_SCRIPT_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(Object.assign({ action }, payload)),
+    body: JSON.stringify(Object.assign({ action, naam: huidigeGebruiker, wachtwoord: huidigWachtwoord }, payload)),
   });
   if (!res.ok) throw new Error("opslaan mislukt");
-  return res.json();
+  const data = await res.json();
+  if (data && data.ok === false) throw new Error(data.error || "actie mislukt");
+  return data;
 }
 
 // ---- TABS ----
@@ -674,9 +683,6 @@ function downloadICS(b) {
 // ---- INIT ----
 vulSelecties();
 vulNaamKeuze();
-if (huidigeGebruiker) {
-  startApp();
-}
 </script>
 </body>
 </html>
