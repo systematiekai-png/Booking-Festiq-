@@ -11,6 +11,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="FestiQ" />
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function (OneSignal) {
+    await OneSignal.init({ appId: "010608b2-a02b-482a-9849-e5931cce9bb1" });
+  });
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
@@ -181,6 +188,8 @@
   </div>
 </div>
 
+<div id="toast" class="hidden" style="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:14px 24px;border-radius:999px;font-weight:600;font-family:'Fredoka',sans-serif;box-shadow:0 4px 16px rgba(0,0,0,0.25);z-index:1000;transition:opacity .3s;"></div>
+
 <script>
 // ==== CONFIGURATIE — pas dit aan na het deployen van je Apps Script ====
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyxEjWN6bx0nLwRzsQpCJlcCY_jSWu1XBW9cBRj7ZDBxNOc8CIf7DiKnO7b5sF_Lub3wg/exec";
@@ -198,8 +207,8 @@ const KLEUR_STATUS = {
 };
 
 let bookings = [];
-let huidigeGebruiker = null;
-let huidigWachtwoord = null;
+let huidigeGebruiker = localStorage.getItem("festiq_gebruiker") || null;
+let huidigWachtwoord = localStorage.getItem("festiq_wachtwoord") || null;
 let geselecteerdeProducten = [];
 let geselecteerdeToegewezen = [];
 let editId = null;
@@ -245,6 +254,8 @@ $("login-form").addEventListener("submit", async (e) => {
     if (data.ok) {
       huidigeGebruiker = data.naam;
       huidigWachtwoord = wachtwoord;
+      localStorage.setItem("festiq_gebruiker", data.naam);
+      localStorage.setItem("festiq_wachtwoord", wachtwoord);
       $("login-wachtwoord").value = "";
       startApp();
     } else {
@@ -269,12 +280,24 @@ function startApp() {
   } else {
     $("tab-nieuw").classList.add("hidden");
   }
+  if (window.OneSignalDeferred) {
+    window.OneSignalDeferred.push(async function (OneSignal) {
+      try {
+        await OneSignal.login(huidigeGebruiker);
+        await OneSignal.Notifications.requestPermission();
+      } catch (e) {
+        // meldingen zijn optioneel; de rest van de app blijft gewoon werken
+      }
+    });
+  }
   laadBoekingen();
 }
 
 $("wissel-btn").onclick = () => {
   huidigeGebruiker = null;
   huidigWachtwoord = null;
+  localStorage.removeItem("festiq_gebruiker");
+  localStorage.removeItem("festiq_wachtwoord");
   verberg("main-screen");
   toon("login-screen");
 };
@@ -290,7 +313,15 @@ async function laadBoekingen() {
     });
     if (!res.ok) throw new Error("fout bij laden");
     const data = await res.json();
-    if (data && data.ok === false) throw new Error(data.error || "niet ingelogd");
+    if (data && data.ok === false) {
+      huidigeGebruiker = null;
+      huidigWachtwoord = null;
+      localStorage.removeItem("festiq_gebruiker");
+      localStorage.removeItem("festiq_wachtwoord");
+      verberg("main-screen");
+      toon("login-screen");
+      return;
+    }
     bookings = data;
     bookings.sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
     renderLijst();
@@ -526,9 +557,11 @@ $("view-nieuw").addEventListener("submit", async (e) => {
   };
   try {
     await stuurNaarSheet(editId ? "update" : "create", { booking });
+    const wasNieuw = !editId;
     resetForm();
     wisselTab("overzicht");
     laadBoekingen();
+    toonToast(wasNieuw ? `Boeking voor ${booking.klant} is aangemaakt ✓` : `Boeking voor ${booking.klant} is bijgewerkt ✓`);
   } catch (err) {
     $("save-error").textContent = "Opslaan is mislukt. Controleer je internetverbinding en probeer opnieuw.";
     toon("save-error");
@@ -687,9 +720,24 @@ function downloadICS(b) {
   URL.revokeObjectURL(url);
 }
 
+function toonToast(tekst) {
+  const toast = $("toast");
+  toast.textContent = tekst;
+  toast.classList.remove("hidden");
+  toast.style.opacity = "1";
+  clearTimeout(toonToast._timer);
+  toonToast._timer = setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.classList.add("hidden"), 300);
+  }, 3000);
+}
+
 // ---- INIT ----
 vulSelecties();
 vulNaamKeuze();
+if (huidigeGebruiker && huidigWachtwoord) {
+  startApp();
+}
 </script>
 </body>
 </html>
