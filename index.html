@@ -15,7 +15,11 @@
 <script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function (OneSignal) {
-    await OneSignal.init({ appId: "010608b2-a02b-482a-9849-e5931cce9bb1" });
+    await OneSignal.init({
+      appId: "010608b2-a02b-482a-9849-e5931cce9bb1",
+      serviceWorkerParam: { scope: "/Booking-Festiq-/" },
+      serviceWorkerPath: "OneSignalSDKWorker.js",
+    });
   });
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
